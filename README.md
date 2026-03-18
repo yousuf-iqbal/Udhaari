@@ -13,15 +13,15 @@ A full stack web application built with React, Node.js, and SQL Server.
 git clone https://github.com/yousuf-iqbal/Udhaari-An-Asset-Lending-Platform.git
 
 ### 2. Setup Database
-Open SSMS and run the file inside the database folder
+Open SSMS and run the sql file inside the database folder
 
 ### 3. Setup Backend
-cd backend
-npm install
-Add a .env file
-node server.js
+- cd backend
+- npm install
+- Add a .env file
+- node server.js
 
 ### 4. Setup Frontend
-cd frontend
-npm install
-npm run dev
+- cd frontend
+- npm install
+- npm run dev/start
