@@ -24,26 +24,23 @@ go
 
 -- table 1: users
 -- every person on the platform | renter, lender, or admin
+-- table 1: users
 create table Users 
 (
-    UserID           int           primary key identity(1,1),
-    FullName         nvarchar(100) not null,
-    Email            nvarchar(100) not null unique,           -- no two accounts with same email
-    Password         nvarchar(255) not null,                  -- stores bcrypt hash, never plain text
-    Phone            nvarchar(20),
-    City             nvarchar(50),
-    Area             nvarchar(100),
-    CNIC             nvarchar(15),
-    CNICPicture      nvarchar(255),                           -- file path to uploaded cnic image
-    ProfilePic       nvarchar(255),                           -- file path to profile photo
-    IsVerified       bit           default 0,                 -- 0 = not admin verified, 1 = verified
-    IsBanned         bit           default 0,                 -- 0 = active, 1 = banned
-    Role             nvarchar(10)  default 'user'
-                     check (Role in ('user', 'admin')),       
-    OTPCode          nvarchar(6),                             -- 6-digit code sent to email
-    OTPExpiresAt     datetime,                                -- otp becomes invalid after this time
-    IsEmailVerified  bit           default 0,                 -- 0 = email not confirmed yet
-    CreatedAt        datetime      default getdate()
+    UserID      int           primary key identity(1,1),
+    FullName    nvarchar(100) not null,
+    Email       nvarchar(100) not null unique,
+    Phone       nvarchar(20),
+    City        nvarchar(50),
+    Area        nvarchar(100),
+    CNIC        nvarchar(15),
+    CNICPicture nvarchar(255),
+    ProfilePic  nvarchar(255),
+    IsVerified  bit           default 0,
+    IsBanned    bit           default 0,
+    Role        nvarchar(10)  default 'user'
+                check (Role in ('user', 'admin')),
+    CreatedAt   datetime      default getdate()
 );
 go
 
@@ -291,15 +288,15 @@ go
 
 -- users second since almost every table references userid
 -- passwords shown as placeholders bcrypt hashes these in the real app
-insert into Users (FullName, Email, Password, Phone, City, Area, CNIC, IsVerified, IsEmailVerified, Role) values
-('Yousuf','yousuf@email.com','hashed_pw_1', '03001234567', 'Lahore', 'DHA Phase 5', '3520112345671', 1, 1, 'user'),
-('Dua','dua@email.com', 'hashed_pw_2', '03211234567', 'Lahore', 'Gulberg III',  '3520298765432', 1, 1, 'user'),
-('Khushbakht', 'khushbakht@email.com', 'hashed_pw_3', '03451234567', 'Lahore', 'Model Town', '3520387654321', 0, 1, 'user'),
-('Noor', 'noor@email.com', 'hashed_pw_4', '03331234567', 'Lahore', 'Johar Town', '3520476543210', 1, 1, 'user'),
-('Sara Khan', 'sara@email.com',  'hashed_pw_5', '03121234567', 'Lahore', 'Bahria Town', '3520565432109', 0, 0, 'user'),
-('Ahmed Raza', 'ahmed@email.com',  'hashed_pw_6', '03041234567', 'Lahore', 'Cantt', '3520654321098', 1, 1, 'user'),
-('Admin User', 'admin@udhaari.com', 'hashed_pw_7', '03001111111', 'Lahore', 'FAST-NU', '3520743210987', 1, 1, 'admin');
-go
+insert into Users (FullName, Email, Phone, City, Area, CNIC, IsVerified, Role) values
+('Yousuf',     'yousuf@email.com',     '03001234567', 'Lahore', 'DHA Phase 5', '3520112345671', 1, 'user'),
+('Dua',        'dua@email.com',        '03211234567', 'Lahore', 'Gulberg III', '3520298765432', 1, 'user'),
+('Khushbakht', 'khushbakht@email.com', '03451234567', 'Lahore', 'Model Town',  '3520387654321', 0, 'user'),
+('Noor',       'noor@email.com',       '03331234567', 'Lahore', 'Johar Town',  '3520476543210', 1, 'user'),
+('Sara Khan',  'sara@email.com',       '03121234567', 'Lahore', 'Bahria Town', '3520565432109', 0, 'user'),
+('Ahmed Raza', 'ahmed@email.com',      '03041234567', 'Lahore', 'Cantt',       '3520654321098', 1, 'user'),
+('Admin User', 'admin@udhaari.com',    '03001111111', 'Lahore', 'FAST-NU',     '3520743210987', 1, 'admin');
+
 
 -- one wallet per user
 insert into Wallets (UserID, Balance) values
@@ -407,419 +404,419 @@ insert into Wishlist (UserID, AssetID) values
 (3, 5);
 go
 
------------------------------------------------------------
--- select queries
+-- -----------------------------------------------------------
+-- -- select queries
 
--- all open requests for the landing page request board
--- includes requester name, category, and offer count per request
+-- -- all open requests for the landing page request board
+-- -- includes requester name, category, and offer count per request
 
-select
-    r.RequestID,
-    r.Title,
-    r.Description,
-    r.Area,
-    r.City,
-    r.StartDate,
-    r.EndDate,
-    r.MaxBudget,
-    r.CreatedAt,
-    u.FullName   as RequesterName,
-    u.IsVerified,
-    c.Name       as Category,
-    (select count(*) from Offers o where o.RequestID = r.RequestID) as OfferCount
-from Requests r
-join Users      u on r.RequesterID = u.UserID
-join Categories c on r.CategoryID  = c.CategoryID
-where r.Status = 'open'
-order by r.CreatedAt desc;
-go
-
-
--- ------------------------------------------------------------
--- all active asset listings for the bazaar page
--- coalesce returns 0 if the owner has no reviews yet
--- ------------------------------------------------------------
-select
-    a.AssetID,
-    a.Title,
-    a.PricePerDay,
-    a.City,
-    a.Area,
-    c.Name       as Category,
-    u.FullName   as OwnerName,
-    u.IsVerified,
-    img.ImageURL as PrimaryImage,
-    coalesce(avg(cast(rv.Rating as float)), 0) as OwnerRating
-from Assets a
-join Users           u   on a.OwnerID    = u.UserID
-join Categories      c   on a.CategoryID = c.CategoryID
-left join AssetImages img on img.AssetID  = a.AssetID and img.IsPrimary = 1
-left join Reviews    rv  on rv.RevieweeID = u.UserID
-where a.IsActive = 1
-group by
-    a.AssetID, a.Title, a.PricePerDay, a.City, a.Area,
-    c.Name, u.FullName, u.IsVerified, img.ImageURL
-order by a.CreatedAt desc;
-go
+-- select
+--     r.RequestID,
+--     r.Title,
+--     r.Description,
+--     r.Area,
+--     r.City,
+--     r.StartDate,
+--     r.EndDate,
+--     r.MaxBudget,
+--     r.CreatedAt,
+--     u.FullName   as RequesterName,
+--     u.IsVerified,
+--     c.Name       as Category,
+--     (select count(*) from Offers o where o.RequestID = r.RequestID) as OfferCount
+-- from Requests r
+-- join Users      u on r.RequesterID = u.UserID
+-- join Categories c on r.CategoryID  = c.CategoryID
+-- where r.Status = 'open'
+-- order by r.CreatedAt desc;
+-- go
 
 
--- ------------------------------------------------------------
--- keyword search on requests
--- searches both title and description
-select
-    r.RequestID,
-    r.Title,
-    r.Description,
-    r.MaxBudget,
-    r.StartDate,
-    r.EndDate,
-    u.FullName as RequesterName
-from Requests r
-join Users u on r.RequesterID = u.UserID
-where r.Status = 'open'
-  and (r.Title like '%camera%' or r.Description like '%camera%');
-go
+-- -- ------------------------------------------------------------
+-- -- all active asset listings for the bazaar page
+-- -- coalesce returns 0 if the owner has no reviews yet
+-- -- ------------------------------------------------------------
+-- select
+--     a.AssetID,
+--     a.Title,
+--     a.PricePerDay,
+--     a.City,
+--     a.Area,
+--     c.Name       as Category,
+--     u.FullName   as OwnerName,
+--     u.IsVerified,
+--     img.ImageURL as PrimaryImage,
+--     coalesce(avg(cast(rv.Rating as float)), 0) as OwnerRating
+-- from Assets a
+-- join Users           u   on a.OwnerID    = u.UserID
+-- join Categories      c   on a.CategoryID = c.CategoryID
+-- left join AssetImages img on img.AssetID  = a.AssetID and img.IsPrimary = 1
+-- left join Reviews    rv  on rv.RevieweeID = u.UserID
+-- where a.IsActive = 1
+-- group by
+--     a.AssetID, a.Title, a.PricePerDay, a.City, a.Area,
+--     c.Name, u.FullName, u.IsVerified, img.ImageURL
+-- order by a.CreatedAt desc;
+-- go
 
 
--- ------------------------------------------------------------
--- q4: filter bazaar by category, city, and price range
-select
-    a.AssetID,
-    a.Title,
-    a.PricePerDay,
-    a.City,
-    c.Name     as Category,
-    u.FullName as OwnerName
-from Assets a
-join Users      u on a.OwnerID    = u.UserID
-join Categories c on a.CategoryID = c.CategoryID
-where a.IsActive    = 1
-  and a.CategoryID  = 1
-  and a.City        = 'Lahore'
-  and a.PricePerDay between 500 and 2000;
-go
+-- -- ------------------------------------------------------------
+-- -- keyword search on requests
+-- -- searches both title and description
+-- select
+--     r.RequestID,
+--     r.Title,
+--     r.Description,
+--     r.MaxBudget,
+--     r.StartDate,
+--     r.EndDate,
+--     u.FullName as RequesterName
+-- from Requests r
+-- join Users u on r.RequesterID = u.UserID
+-- where r.Status = 'open'
+--   and (r.Title like '%camera%' or r.Description like '%camera%');
+-- go
 
 
--- ------------------------------------------------------------
--- q5: all offers for a request, sorted by lender rating
-select
-    o.OfferID,
-    o.OfferedPrice,
-    o.Message,
-    o.Status,
-    u.FullName  as LenderName,
-    u.IsVerified,
-    coalesce(avg(cast(rv.Rating as float)), 0) as LenderRating
-from Offers o
-join Users        u  on o.LenderID    = u.UserID
-left join Reviews rv on rv.RevieweeID = u.UserID
-where o.RequestID = 1
-group by
-    o.OfferID, o.OfferedPrice, o.Message, o.Status,
-    u.FullName, u.IsVerified
-order by LenderRating desc;
-go
+-- -- ------------------------------------------------------------
+-- -- q4: filter bazaar by category, city, and price range
+-- select
+--     a.AssetID,
+--     a.Title,
+--     a.PricePerDay,
+--     a.City,
+--     c.Name     as Category,
+--     u.FullName as OwnerName
+-- from Assets a
+-- join Users      u on a.OwnerID    = u.UserID
+-- join Categories c on a.CategoryID = c.CategoryID
+-- where a.IsActive    = 1
+--   and a.CategoryID  = 1
+--   and a.City        = 'Lahore'
+--   and a.PricePerDay between 500 and 2000;
+-- go
 
 
--- ------------------------------------------------------------
--- q6: booking history for a renter
-select
-    b.BookingID,
-    a.Title    as AssetTitle,
-    b.StartDate,
-    b.EndDate,
-    b.TotalPrice,
-    b.Status,
-    b.IsPaid,
-    u.FullName as LenderName
-from Bookings b
-join Assets a on b.AssetID  = a.AssetID
-join Users  u on b.LenderID = u.UserID
-where b.RenterID = 3
-order by b.CreatedAt desc;
-go
+-- -- ------------------------------------------------------------
+-- -- q5: all offers for a request, sorted by lender rating
+-- select
+--     o.OfferID,
+--     o.OfferedPrice,
+--     o.Message,
+--     o.Status,
+--     u.FullName  as LenderName,
+--     u.IsVerified,
+--     coalesce(avg(cast(rv.Rating as float)), 0) as LenderRating
+-- from Offers o
+-- join Users        u  on o.LenderID    = u.UserID
+-- left join Reviews rv on rv.RevieweeID = u.UserID
+-- where o.RequestID = 1
+-- group by
+--     o.OfferID, o.OfferedPrice, o.Message, o.Status,
+--     u.FullName, u.IsVerified
+-- order by LenderRating desc;
+-- go
 
 
--- ------------------------------------------------------------
--- q7: earnings per asset for an owner | completed bookings only
-select
-    a.Title            as AssetTitle,
-    count(b.BookingID) as TotalBookings,
-    sum(b.TotalPrice)  as TotalEarnings
-from Bookings b
-join Assets a on b.AssetID = a.AssetID
-where b.LenderID = 1
-  and b.Status   = 'completed'
-group by a.AssetID, a.Title
-order by TotalEarnings desc;
-go
+-- -- ------------------------------------------------------------
+-- -- q6: booking history for a renter
+-- select
+--     b.BookingID,
+--     a.Title    as AssetTitle,
+--     b.StartDate,
+--     b.EndDate,
+--     b.TotalPrice,
+--     b.Status,
+--     b.IsPaid,
+--     u.FullName as LenderName
+-- from Bookings b
+-- join Assets a on b.AssetID  = a.AssetID
+-- join Users  u on b.LenderID = u.UserID
+-- where b.RenterID = 3
+-- order by b.CreatedAt desc;
+-- go
 
 
--- ------------------------------------------------------------
--- q8: all messages in a booking conversation (oldest first)
-select
-    m.MessageID,
-    m.Body,
-    m.SentAt,
-    m.IsRead,
-    s.FullName as SenderName
-from Messages m
-join Users s on m.SenderID = s.UserID
-where m.BookingID = 1
-order by m.SentAt asc;
-go
+-- -- ------------------------------------------------------------
+-- -- q7: earnings per asset for an owner | completed bookings only
+-- select
+--     a.Title            as AssetTitle,
+--     count(b.BookingID) as TotalBookings,
+--     sum(b.TotalPrice)  as TotalEarnings
+-- from Bookings b
+-- join Assets a on b.AssetID = a.AssetID
+-- where b.LenderID = 1
+--   and b.Status   = 'completed'
+-- group by a.AssetID, a.Title
+-- order by TotalEarnings desc;
+-- go
 
 
--- ------------------------------------------------------------
--- q9: all reviews received by a user---
-select
-    rv.Rating,
-    rv.Comment,
-    rv.CreatedAt,
-    u.FullName as ReviewerName,
-    a.Title    as AssetName
-from Reviews rv
-join Users       u on rv.ReviewerID = u.UserID
-left join Assets a on rv.AssetID    = a.AssetID
-where rv.RevieweeID = 1
-order by rv.CreatedAt desc;
-go
+-- -- ------------------------------------------------------------
+-- -- q8: all messages in a booking conversation (oldest first)
+-- select
+--     m.MessageID,
+--     m.Body,
+--     m.SentAt,
+--     m.IsRead,
+--     s.FullName as SenderName
+-- from Messages m
+-- join Users s on m.SenderID = s.UserID
+-- where m.BookingID = 1
+-- order by m.SentAt asc;
+-- go
 
 
--- ------------------------------------------------------------
--- q10: average star rating for a user
-select
-    avg(cast(Rating as float)) as AverageRating,
-    count(*)                   as TotalReviews
-from Reviews
-where RevieweeID = 1;
-go
+-- -- ------------------------------------------------------------
+-- -- q9: all reviews received by a user---
+-- select
+--     rv.Rating,
+--     rv.Comment,
+--     rv.CreatedAt,
+--     u.FullName as ReviewerName,
+--     a.Title    as AssetName
+-- from Reviews rv
+-- join Users       u on rv.ReviewerID = u.UserID
+-- left join Assets a on rv.AssetID    = a.AssetID
+-- where rv.RevieweeID = 1
+-- order by rv.CreatedAt desc;
+-- go
 
 
--- ------------------------------------------------------------
--- q11: wallet balance for a user
-select
-    u.FullName,
-    w.Balance
-from Wallets w
-join Users u on w.UserID = u.UserID
-where w.UserID = 3;
-go
+-- -- ------------------------------------------------------------
+-- -- q10: average star rating for a user
+-- select
+--     avg(cast(Rating as float)) as AverageRating,
+--     count(*)                   as TotalReviews
+-- from Reviews
+-- where RevieweeID = 1;
+-- go
 
 
--- ------------------------------------------------------------
--- q12: availability check before booking
--- if this returns any rows the asset is not free on those dates
--- if it returns no rows the asset is available
-select BlockedDate
-from Availability
-where AssetID     = 1
-  and BlockedDate between '2026-03-15' and '2026-03-16';
-go
+-- -- ------------------------------------------------------------
+-- -- q11: wallet balance for a user
+-- select
+--     u.FullName,
+--     w.Balance
+-- from Wallets w
+-- join Users u on w.UserID = u.UserID
+-- where w.UserID = 3;
+-- go
 
 
--- ------------------------------------------------------------
--- q13: admin dashboard summary , all stats in one row
-select
-    (select count(*)        from Users    where Role     = 'user')      as TotalUsers,
-    (select count(*)        from Assets   where IsActive = 1)           as ActiveListings,
-    (select count(*)        from Requests where Status   = 'open')      as OpenRequests,
-    (select count(*)        from Bookings where Status   = 'completed') as CompletedBookings,
-    (select sum(TotalPrice) from Bookings where Status   = 'completed') as TotalRevenue;
-go
+-- -- ------------------------------------------------------------
+-- -- q12: availability check before booking
+-- -- if this returns any rows the asset is not free on those dates
+-- -- if it returns no rows the asset is available
+-- select BlockedDate
+-- from Availability
+-- where AssetID     = 1
+--   and BlockedDate between '2026-03-15' and '2026-03-16';
+-- go
 
 
----------------------------------------------------------
--- section 5: update queries
-
--- ------------------------------------------------------------
--- accept one offer and decline all other offers on that request
--- the second update uses <> to exclude the accepted offer
-
-update Offers
-set Status = 'accepted'
-where OfferID = 1
-  and Status  = 'pending';    --  do not re-accept an already accepted offer
-go
-
-update Offers
-set Status = 'declined'
-where RequestID = 1
-  and OfferID  <> 1
-  and Status    = 'pending';  -- only decline offers still in pending state
-go
+-- -- ------------------------------------------------------------
+-- -- q13: admin dashboard summary , all stats in one row
+-- select
+--     (select count(*)        from Users    where Role     = 'user')      as TotalUsers,
+--     (select count(*)        from Assets   where IsActive = 1)           as ActiveListings,
+--     (select count(*)        from Requests where Status   = 'open')      as OpenRequests,
+--     (select count(*)        from Bookings where Status   = 'completed') as CompletedBookings,
+--     (select sum(TotalPrice) from Bookings where Status   = 'completed') as TotalRevenue;
+-- go
 
 
--- ------------------------------------------------------------
--- booking status transitions through the lifecycle
--- each step checks the current status to prevent invalid jumps
--- e.g. cannot go from pending directly to completed
+-- ---------------------------------------------------------
+-- -- section 5: update queries
 
--- lender confirms the booking
-update Bookings
-set Status = 'confirmed'
-where BookingID = 4
-  and LenderID  = 4            -- only the lender of this booking can confirm it
-  and Status    = 'pending';   -- only confirm if currently pending
-go
+-- -- ------------------------------------------------------------
+-- -- accept one offer and decline all other offers on that request
+-- -- the second update uses <> to exclude the accepted offer
 
--- item has been handed over, rental period begins
-update Bookings
-set Status = 'ongoing'
-where BookingID = 4
-  and Status    = 'confirmed'; -- can only go ongoing from confirmed
-go
+-- update Offers
+-- set Status = 'accepted'
+-- where OfferID = 1
+--   and Status  = 'pending';    --  do not re-accept an already accepted offer
+-- go
 
--- item returned and rental period complete
-update Bookings
-set Status = 'completed'
-where BookingID = 4
-  and Status    = 'ongoing';   -- can only complete from ongoing
-go
+-- update Offers
+-- set Status = 'declined'
+-- where RequestID = 1
+--   and OfferID  <> 1
+--   and Status    = 'pending';  -- only decline offers still in pending state
+-- go
 
 
--- ------------------------------------------------------------
--- owner marks payment as received
--- lenderid check ensures only the correct lender can do this
-update Bookings
-set IsPaid = 1
-where BookingID = 4
-  and LenderID  = 4    -- only this booking's lender can confirm payment
-  and IsPaid    = 0;   -- skip if already marked paid
-go
+-- -- ------------------------------------------------------------
+-- -- booking status transitions through the lifecycle
+-- -- each step checks the current status to prevent invalid jumps
+-- -- e.g. cannot go from pending directly to completed
+
+-- -- lender confirms the booking
+-- update Bookings
+-- set Status = 'confirmed'
+-- where BookingID = 4
+--   and LenderID  = 4            -- only the lender of this booking can confirm it
+--   and Status    = 'pending';   -- only confirm if currently pending
+-- go
+
+-- -- item has been handed over, rental period begins
+-- update Bookings
+-- set Status = 'ongoing'
+-- where BookingID = 4
+--   and Status    = 'confirmed'; -- can only go ongoing from confirmed
+-- go
+
+-- -- item returned and rental period complete
+-- update Bookings
+-- set Status = 'completed'
+-- where BookingID = 4
+--   and Status    = 'ongoing';   -- can only complete from ongoing
+-- go
 
 
--- ------------------------------------------------------------
---  mark all unread notifications as read for a user
--- the isread = 0 check avoids a pointless full-table write
-update Notifications
-set IsRead = 1
-where UserID = 3
-  and IsRead = 0;   --only update notifications that are actually unread
-go
+-- -- ------------------------------------------------------------
+-- -- owner marks payment as received
+-- -- lenderid check ensures only the correct lender can do this
+-- update Bookings
+-- set IsPaid = 1
+-- where BookingID = 4
+--   and LenderID  = 4    -- only this booking's lender can confirm payment
+--   and IsPaid    = 0;   -- skip if already marked paid
+-- go
 
 
--- ------------------------------------------------------------
--- mark unread messages as read for a user in a conversation
--- receiverid check ensures users cannot mark others' messages as read
-
-update Messages
-set IsRead = 1
-where BookingID  = 1
-  and ReceiverID = 3   -- only mark messages where this user is the receiver
-  and IsRead     = 0;  -- eskip messages already read
-go
+-- -- ------------------------------------------------------------
+-- --  mark all unread notifications as read for a user
+-- -- the isread = 0 check avoids a pointless full-table write
+-- update Notifications
+-- set IsRead = 1
+-- where UserID = 3
+--   and IsRead = 0;   --only update notifications that are actually unread
+-- go
 
 
--- ------------------------------------------------------------
--- owner deactivates their own listing
--- ownerid check prevents one user from hiding another's listing
--- ------------------------------------------------------------
-update Assets
-set IsActive = 0
-where AssetID  = 1
-  and OwnerID  = 1 
-  and IsActive = 1;
-go
+-- -- ------------------------------------------------------------
+-- -- mark unread messages as read for a user in a conversation
+-- -- receiverid check ensures users cannot mark others' messages as read
+
+-- update Messages
+-- set IsRead = 1
+-- where BookingID  = 1
+--   and ReceiverID = 3   -- only mark messages where this user is the receiver
+--   and IsRead     = 0;  -- eskip messages already read
+-- go
 
 
--- ------------------------------------------------------------
--- admin bans a user
--- cannot ban another admin, cannot ban someone already banned
--- ------------------------------------------------------------
-update Users
-set IsBanned = 1
-where UserID   = 5
-  and IsBanned = 0    
-  and Role     = 'user'; 
+-- -- ------------------------------------------------------------
+-- -- owner deactivates their own listing
+-- -- ownerid check prevents one user from hiding another's listing
+-- -- ------------------------------------------------------------
+-- update Assets
+-- set IsActive = 0
+-- where AssetID  = 1
+--   and OwnerID  = 1 
+--   and IsActive = 1;
+-- go
+
+
+-- -- ------------------------------------------------------------
+-- -- admin bans a user
+-- -- cannot ban another admin, cannot ban someone already banned
+-- -- ------------------------------------------------------------
+-- update Users
+-- set IsBanned = 1
+-- where UserID   = 5
+--   and IsBanned = 0    
+--   and Role     = 'user'; 
   
-go
+-- go
 
 
--- ------------------------------------------------------------
---  admin verifies a user
--- ------------------------------------------------------------
-update Users
-set IsVerified = 1
-where UserID     = 3
-  and IsVerified = 0;  
-go
+-- -- ------------------------------------------------------------
+-- --  admin verifies a user
+-- -- ------------------------------------------------------------
+-- update Users
+-- set IsVerified = 1
+-- where UserID     = 3
+--   and IsVerified = 0;  
+-- go
 
 
--- ------------------------------------------------------------
--- wallet deduction and credit for a booking payment
--- the balance >= amount check prevents the wallet going negative
--- ------------------------------------------------------------
-update Wallets
-set Balance   = Balance - 800.00,
-    UpdatedAt = getdate()
-where UserID  = 5
-  and Balance >= 800.00;   -- only deduct if the user actually has enough balance
-go
+-- -- ------------------------------------------------------------
+-- -- wallet deduction and credit for a booking payment
+-- -- the balance >= amount check prevents the wallet going negative
+-- -- ------------------------------------------------------------
+-- update Wallets
+-- set Balance   = Balance - 800.00,
+--     UpdatedAt = getdate()
+-- where UserID  = 5
+--   and Balance >= 800.00;   -- only deduct if the user actually has enough balance
+-- go
 
-update Wallets
-set Balance   = Balance + 800.00,
-    UpdatedAt = getdate()
-where UserID  = 2;
-go
-
-
---insert queries
-
--- ------------------------------------------------------------
--- block dates after a booking is confirmed
--- the unique constraint on availability automatically prevents
--- inserting a duplicate blocked date for the same asset
--- ------------------------------------------------------------
-insert into Availability (AssetID, BlockedDate)
-values (4, '2026-03-22');
-go
+-- update Wallets
+-- set Balance   = Balance + 800.00,
+--     UpdatedAt = getdate()
+-- where UserID  = 2;
+-- go
 
 
--- ============================================================
--- section 7: delete queries
--- all deletes use ownership and status checks so users
--- cannot accidentally or maliciously delete the wrong data
--- ============================================================
+-- --insert queries
+
+-- -- ------------------------------------------------------------
+-- -- block dates after a booking is confirmed
+-- -- the unique constraint on availability automatically prevents
+-- -- inserting a duplicate blocked date for the same asset
+-- -- ------------------------------------------------------------
+-- insert into Availability (AssetID, BlockedDate)
+-- values (4, '2026-03-22');
+-- go
 
 
--- ------------------------------------------------------------
--- q24: renter cancels their own pending booking
--- cannot cancel a confirmed, ongoing, or completed booking
--- ------------------------------------------------------------
-delete from Bookings
-where BookingID = 4
-  and RenterID  = 2          -- edge case: renter can only cancel their own booking
-  and Status    = 'pending'; -- edge case: cannot cancel after lender has already confirmed
-go
+-- -- ============================================================
+-- -- section 7: delete queries
+-- -- all deletes use ownership and status checks so users
+-- -- cannot accidentally or maliciously delete the wrong data
+-- -- ============================================================
 
 
--- ------------------------------------------------------------
--- q25: remove an asset from a user's wishlist
--- userid check ensures users can only remove from their own wishlist
--- ------------------------------------------------------------
-delete from Wishlist
-where UserID  = 3
-  and AssetID = 6;   -- edge case: both userid and assetid required — cannot delete blindly
-go
+-- -- ------------------------------------------------------------
+-- -- q24: renter cancels their own pending booking
+-- -- cannot cancel a confirmed, ongoing, or completed booking
+-- -- ------------------------------------------------------------
+-- delete from Bookings
+-- where BookingID = 4
+--   and RenterID  = 2          -- edge case: renter can only cancel their own booking
+--   and Status    = 'pending'; -- edge case: cannot cancel after lender has already confirmed
+-- go
 
 
--- ------------------------------------------------------------
--- q26: requester deletes their own open request
--- cannot delete a fulfilled request because an offer was accepted
--- ------------------------------------------------------------
-delete from Requests
-where RequestID   = 5
-  and RequesterID = 5                    -- edge case: only the creator can delete their request
-  and Status      not in ('fulfilled'); -- edge case: cannot delete after an offer was accepted
-go
+-- -- ------------------------------------------------------------
+-- -- q25: remove an asset from a user's wishlist
+-- -- userid check ensures users can only remove from their own wishlist
+-- -- ------------------------------------------------------------
+-- delete from Wishlist
+-- where UserID  = 3
+--   and AssetID = 6;   -- edge case: both userid and assetid required ï¿½ cannot delete blindly
+-- go
 
 
--- ------------------------------------------------------------
--- q27: admin removes an inappropriate asset listing
--- cascade automatically deletes all assetimages and availability
--- records linked to this asset -— no manual cleanup needed
--- ------------------------------------------------------------
-delete from Assets
-where AssetID = 6;
-go
+-- -- ------------------------------------------------------------
+-- -- q26: requester deletes their own open request
+-- -- cannot delete a fulfilled request because an offer was accepted
+-- -- ------------------------------------------------------------
+-- delete from Requests
+-- where RequestID   = 5
+--   and RequesterID = 5                    -- edge case: only the creator can delete their request
+--   and Status      not in ('fulfilled'); -- edge case: cannot delete after an offer was accepted
+-- go
+
+
+-- -- ------------------------------------------------------------
+-- -- q27: admin removes an inappropriate asset listing
+-- -- cascade automatically deletes all assetimages and availability
+-- -- records linked to this asset -ï¿½ no manual cleanup needed
+-- -- ------------------------------------------------------------
+-- delete from Assets
+-- where AssetID = 6;
+-- go
