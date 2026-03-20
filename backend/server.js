@@ -30,3 +30,13 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`server running on port ${PORT}`));
+
+
+// to handle server errors
+process.on('unhandledRejection', (err) => {
+  console.error('unhandled rejection:', err.message)
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('uncaught exception:', err.message)
+})

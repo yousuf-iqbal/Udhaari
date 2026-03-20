@@ -1,10 +1,9 @@
-
 // config/db.js - connects to SQL Server
 // everyone imports this - never touch it again after setup
  
 const sql = require('mssql')
 require('dotenv').config()
- 
+
 const config = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
