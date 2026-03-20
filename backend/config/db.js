@@ -1,4 +1,4 @@
-config/db.js
+
 // config/db.js - connects to SQL Server
 // everyone imports this - never touch it again after setup
  
