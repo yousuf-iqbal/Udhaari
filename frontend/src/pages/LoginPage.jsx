@@ -32,7 +32,12 @@ export default function LoginPage() {
       }
 
       // get profile from backend
-      const res = await API.post('/auth/login');
+      const token = await cred.user.getIdToken();
+      const res = await API.post('/auth/login', {}, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
 
       if (res.data.user) {
         // save user to localStorage for quick access
