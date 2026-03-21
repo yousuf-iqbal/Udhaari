@@ -3,7 +3,7 @@
 // this is safe to be public — firebase knows this
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth} from 'firebase/auth';
 
 
 
@@ -18,4 +18,4 @@ const firebaseConfig = {
 
 const app  = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
+

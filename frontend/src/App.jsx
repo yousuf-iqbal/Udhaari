@@ -1,61 +1,46 @@
 // src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import SignupPage from './pages/SignupPage';
-import LoginPage  from './pages/LoginPage';
+import AuthPage from './pages/AuthPage';
 
-// placeholder home page — replace with your real one later
 function HomePage() {
   const { user } = useAuth();
   return (
     <div style={{
-      minHeight: '100vh',
-      background: '#0a0a0f',
-      color: '#fff',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontFamily: 'sans-serif',
-      flexDirection: 'column',
-      gap: '1rem',
+      minHeight: '100vh', background: '#080810', color: '#fff',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexDirection: 'column', gap: '1rem', fontFamily: 'system-ui',
     }}>
-      <h1 style={{ color: '#7c5cfc', fontSize: '2rem' }}>Udhaari</h1>
-      {user ? (
+      <h1 style={{ color: '#8b5cf6', fontSize: '2rem', fontWeight: 800 }}>Udhaari</h1>
+      {user && (
         <>
-          <p>Welcome, <strong>{user.fullName}</strong>!</p>
-          <p style={{ color: '#888' }}>Role: {user.role}</p>
-          <button
-            onClick={() => {
-              import('firebase/auth').then(({ getAuth, signOut }) => {
-                signOut(getAuth());
-                localStorage.removeItem('udhaari_user');
-                window.location.href = '/login';
-              });
-            }}
-            style={{
-              padding: '0.6rem 1.5rem',
-              background: '#ff5e78',
-              border: 'none',
-              borderRadius: '8px',
-              color: '#fff',
-              cursor: 'pointer',
-            }}
-          >
+          <p>Welcome, <strong>{user.fullName}</strong></p>
+          <p style={{ color: '#555', fontSize: '0.85rem' }}>Role: {user.role}</p>
+          <button onClick={() => {
+            import('firebase/auth').then(({ getAuth, signOut }) => {
+              signOut(getAuth());
+              localStorage.removeItem('udhaari_user');
+              localStorage.removeItem('udhaari_pending_profile');
+              localStorage.removeItem('udhaari_pending_email');
+              window.location.href = '/auth';
+            });
+          }} style={{
+            padding: '0.6rem 1.5rem', background: '#8b5cf6',
+            border: 'none', borderRadius: '10px', color: '#fff',
+            fontWeight: 700, cursor: 'pointer',
+          }}>
             Logout
           </button>
         </>
-      ) : (
-        <p style={{ color: '#888' }}>Not logged in</p>
       )}
     </div>
   );
 }
 
-// protected route — redirects to login if not logged in
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
-  return user ? children : <Navigate to="/login" />;
+  return user ? children : <Navigate to="/auth" />;
 }
 
 export default function App() {
@@ -63,13 +48,13 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/login"  element={<LoginPage />} />
+          <Route path="/auth"   element={<AuthPage />} />
+          <Route path="/login"  element={<Navigate to="/auth" />} />
+          <Route path="/signup" element={<Navigate to="/auth" />} />
           <Route path="/" element={
-            <ProtectedRoute>
-              <HomePage />
-            </ProtectedRoute>
+            <ProtectedRoute><HomePage /></ProtectedRoute>
           } />
+          <Route path="*" element={<Navigate to="/auth" />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

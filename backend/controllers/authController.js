@@ -1,10 +1,9 @@
 // controllers/authController.js
-// firebase handles all auth (registration, login, otp, forgot password)
-// this controller only handles:
-//   1. saving profile data to our database after firebase registration
-//   2. returning user profile on login
+// firebase handles all auth
+// register: saves profile ONLY after email is verified
+// login: verifies token and returns user profile
 
-const { admin }   = require('../config/firebase');
+const { admin } = require('../config/firebase');
 const {
   findUserByEmail,
   findUserByPhone,
@@ -12,11 +11,11 @@ const {
   updateProfilePictures,
 } = require('../models/authModel');
 
-// ─── SAVE PROFILE ─────────────────────────────────────────────────────────────
+// ─── REGISTER ─────────────────────────────────────────────────────────────────
 // POST /api/auth/register
-// called AFTER firebase creates the account and sends verification email
-// frontend sends the firebase token + profile fields + images
-// we verify the token, then save profile data to our database
+// called on FIRST LOGIN after email is verified
+// frontend stores profile data in localStorage after signup
+// on first verified login, frontend sends that stored data here to save to DB
 
 const register = async (req, res) => {
   try {
@@ -24,50 +23,66 @@ const register = async (req, res) => {
     const token      = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-      return res.status(401).json({ error: 'firebase token required' });
+      return res.status(401).json({ error: 'firebase token required.' });
     }
 
-    // verify the firebase token to get the email
     let decoded;
     try {
       decoded = await admin.auth().verifyIdToken(token);
-    } catch (err) {
-      return res.status(401).json({ error: 'invalid firebase token' });
+    } catch {
+      return res.status(401).json({ error: 'invalid firebase token.' });
+    }
+
+    // CRITICAL: only allow registration if email is verified in firebase
+    if (!decoded.email_verified) {
+      return res.status(403).json({
+        error: 'email not verified. please verify your email before completing registration.',
+      });
     }
 
     const email = decoded.email;
-    const { fullName, phone, city, area, cnic } = req.body;
 
-    // --- validation ---
-    if (!fullName || !phone || !city || !cnic) {
-      return res.status(400).json({ error: 'all required fields must be filled' });
-    }
-    if (!/^03\d{9}$/.test(phone)) {
-      return res.status(400).json({ error: 'phone must be 11 digits starting with 03' });
-    }
-    if (!/^\d{13}$/.test(cnic)) {
-      return res.status(400).json({ error: 'cnic must be exactly 13 digits' });
-    }
-
-    // --- check if already registered in our db ---
+    // check if already registered — idempotent, safe to call multiple times
     const existingUser = await findUserByEmail(email);
     if (existingUser) {
-      return res.status(409).json({ error: 'profile already exists. please log in.' });
+      // already registered — just return the user so frontend can proceed
+      return res.status(200).json({
+        message: 'profile already exists.',
+        user: {
+          id:         existingUser.UserID,
+          fullName:   existingUser.FullName,
+          email:      existingUser.Email,
+          role:       existingUser.Role,
+          profilePic: existingUser.ProfilePic,
+          isVerified: existingUser.IsVerified,
+        },
+      });
     }
 
-    // --- check phone duplicate ---
+    // pull profile fields from body — sent by frontend from localStorage
+    const { fullName, phone, city, area, cnic } = req.body;
+
+    if (!fullName || !phone || !city || !cnic) {
+      return res.status(400).json({ error: 'all required fields must be filled.' });
+    }
+    if (!/^03\d{9}$/.test(phone)) {
+      return res.status(400).json({ error: 'phone must be 11 digits starting with 03.' });
+    }
+    if (!/^\d{13}$/.test(cnic)) {
+      return res.status(400).json({ error: 'cnic must be exactly 13 digits.' });
+    }
+
     const existingPhone = await findUserByPhone(phone);
     if (existingPhone) {
       return res.status(409).json({ error: 'phone number already registered.' });
     }
 
-    // --- save to our database ---
+    // save to database — only reaches here if email is verified
     await createUser({ fullName, email, phone, city, area, cnic });
 
-    // --- save cloudinary image urls if uploaded ---
+    // save cloudinary image urls if uploaded
     const profilePicUrl  = req.files?.profilePic?.[0]?.path  || null;
     const cnicPictureUrl = req.files?.cnicPicture?.[0]?.path || null;
-
     if (profilePicUrl || cnicPictureUrl) {
       await updateProfilePictures(email, profilePicUrl, cnicPictureUrl);
     }
@@ -75,15 +90,14 @@ const register = async (req, res) => {
     res.status(201).json({ message: 'profile saved successfully.' });
 
   } catch (err) {
-  console.error('register error FULL:', err);
-  res.status(500).json({ error: err.message || 'something went wrong.' });
-}
+    console.error('register error:', err.message);
+    res.status(500).json({ error: 'something went wrong. please try again.' });
+  }
 };
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
 // POST /api/auth/login
-// firebase handles password checking on the frontend
-// frontend sends firebase token → we verify it → return user profile from our db
+// verifies firebase token → checks email verified → returns profile from DB
 
 const login = async (req, res) => {
   try {
@@ -91,30 +105,33 @@ const login = async (req, res) => {
     const token      = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-      return res.status(401).json({ error: 'firebase token required' });
+      return res.status(401).json({ error: 'firebase token required.' });
     }
 
-    // verify token with firebase
     let decoded;
     try {
       decoded = await admin.auth().verifyIdToken(token);
-    } catch (err) {
+    } catch {
       return res.status(401).json({ error: 'invalid or expired token. please log in again.' });
     }
 
-    //check email verified in firebase
     if (!decoded.email_verified) {
-      return res.status(403).json({ 
-        error: 'please verify your email first. check your inbox for the verification link.' 
+      return res.status(403).json({
+        error: 'please verify your email first. check your inbox for the verification link.',
+        code: 'EMAIL_NOT_VERIFIED',
       });
     }
 
-    // get profile from our database
     const user = await findUserByEmail(decoded.email);
 
     if (!user) {
-      return res.status(404).json({ error: 'profile not found. please complete registration.' });
+      // profile not in DB yet — frontend should complete registration
+      return res.status(404).json({
+        error: 'profile not found. please complete registration.',
+        code: 'PROFILE_NOT_FOUND',
+      });
     }
+
     if (user.IsBanned) {
       return res.status(403).json({ error: 'your account has been suspended. contact support.' });
     }
